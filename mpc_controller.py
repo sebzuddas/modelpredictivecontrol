@@ -1,0 +1,238 @@
+import casadi as ca
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import linalg
+from config import MPCConfig, SystemConfig
+from system_interface import create_system_interface
+
+class MPCController:
+    def __init__(self, mpc_config, system_config):
+        """
+        Initialize dual-mode MPC controller
+        
+        Parameters:
+        -----------
+        mpc_config : MPCConfig
+            MPC configuration object
+        system_config : SystemConfig
+            System configuration object
+        """
+        self.config = mpc_config
+        self.system = create_system_interface(system_config, mpc_config)
+        
+        # System dimensions
+        self.nx = mpc_config.nx
+        self.nu = mpc_config.nu
+        
+        # System dynamics
+        self.x = ca.SX.sym('x', self.nx)
+        self.u = ca.SX.sym('u', self.nu)
+        
+        # Define system dynamics
+        self.f = ca.vertcat(
+            self.x[1],  # velocity
+            self.u[0]   # acceleration
+        )
+        
+        # Create integrator
+        self.dae = {'x': self.x, 'p': self.u, 'ode': self.f}
+        self.integrator = ca.integrator('F', 'cvodes', self.dae, {'tf': self.config.dt})
+        
+        # Compute LQR controller for terminal mode
+        self.compute_lqr_gain()
+        
+        # MPC setup
+        self.setup_mpc()
+    
+    def compute_lqr_gain(self):
+        """Compute LQR gain for terminal mode"""
+        # Solve discrete-time LQR
+        P = linalg.solve_discrete_are(self.config.A, self.config.B, 
+                                    self.config.Q, self.config.R)
+        self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
+        self.P = P
+    
+    def setup_mpc(self):
+        """Setup the dual-mode MPC optimization problem"""
+        # Declare variables
+        self.opti = ca.Opti()
+        
+        # Decision variables
+        self.X = self.opti.variable(self.nx, self.config.N + 1)
+        self.U = self.opti.variable(self.nu, self.config.N)
+        
+        # Parameters
+        self.x0 = self.opti.parameter(self.nx)
+        self.x_ref = self.opti.parameter(self.nx)
+        
+        # Cost function
+        cost = 0
+        for k in range(self.config.N):
+            # State cost
+            state_error = self.X[:, k] - self.x_ref
+            cost += ca.mtimes([state_error.T, self.config.Q, state_error])
+            
+            # Input cost
+            cost += ca.mtimes([self.U[:, k].T, self.config.R, self.U[:, k]])
+        
+        # Terminal cost
+        state_error = self.X[:, -1] - self.x_ref
+        cost += ca.mtimes([state_error.T, self.P, state_error])
+        
+        self.opti.minimize(cost)
+        
+        # Constraints
+        for k in range(self.config.N):
+            # System dynamics
+            self.opti.subject_to(
+                self.X[:, k+1] == self.integrator(x0=self.X[:, k], p=self.U[:, k])['xf']
+            )
+            
+            # State constraints
+            self.opti.subject_to(
+                self.opti.bounded(self.config.x_min, self.X[:, k], self.config.x_max)
+            )
+            
+            # Input constraints
+            self.opti.subject_to(
+                self.opti.bounded(self.config.u_min, self.U[:, k], self.config.u_max)
+            )
+        
+        # Terminal state constraint
+        state_error = self.X[:, -1] - self.x_ref
+        self.opti.subject_to(
+            ca.mtimes([state_error.T, self.P, state_error]) <= self.config.terminal_region_radius**2
+        )
+        
+        # Initial state constraint
+        self.opti.subject_to(self.X[:, 0] == self.x0)
+        
+        # Solver
+        self.opti.solver('ipopt')
+    
+    def solve(self, x0, x_ref):
+        """Solve the MPC problem"""
+        self.opti.set_value(self.x0, x0)
+        self.opti.set_value(self.x_ref, x_ref)
+        
+        sol = self.opti.solve()
+        return sol.value(self.U[:, 0])
+    
+    def get_terminal_control(self, x, x_ref):
+        """Get control input from LQR controller"""
+        x_np = np.array(x).flatten()
+        x_ref_np = np.array(x_ref).flatten()
+        
+        u = (self.K @ (x_np - x_ref_np)).flatten()
+        return np.clip(u, self.config.u_min, self.config.u_max)
+    
+    def is_in_terminal_region(self, x, x_ref):
+        """Check if state is in terminal region"""
+        state_error = np.array(x).flatten() - np.array(x_ref).flatten()
+        return state_error.T @ self.P @ state_error <= self.config.terminal_region_radius**2
+    
+    def run(self, x0=None, x_ref=None, T=None):
+        """Run the MPC controller"""
+        if x0 is None:
+            x0 = self.config.initial_state
+        if x_ref is None:
+            x_ref = self.config.reference_state
+        if T is None:
+            T = self.config.simulation_time
+        
+        # Reset system
+        self.system.reset(x0)
+        
+        # Simulation setup
+        N_sim = int(T / self.config.dt)
+        t = np.linspace(0, T, N_sim + 1)
+        x = np.zeros((self.nx, N_sim + 1))
+        u = np.zeros((self.nu, N_sim))
+        mode = np.zeros(N_sim)
+        
+        # Initial state
+        x[:, 0] = x0
+        
+        # Control loop
+        for k in range(N_sim):
+            # Get current state
+            current_state = self.system.get_state()
+            if current_state is None:
+                print("Error: Could not get system state")
+                break
+            
+            # Compute control input
+            if self.is_in_terminal_region(current_state, x_ref):
+                u[:, k] = self.get_terminal_control(current_state, x_ref)
+                mode[k] = 1
+            else:
+                u[:, k] = self.solve(current_state, x_ref)
+                mode[k] = 0
+            
+            # Apply control input
+            next_state = self.system.apply_input(u[:, k])
+            if next_state is None:
+                print("Error: Could not apply control input")
+                break
+            
+            # Store results
+            x[:, k+1] = next_state
+        
+        return t, x, u, mode
+
+def plot_results(t, x, u, x_ref, mode, config):
+    """Plot simulation results"""
+    plt.figure(figsize=(12, 12))
+    
+    # Plot states
+    plt.subplot(3, 1, 1)
+    plt.plot(t, x[0, :], 'b-', label='Position')
+    plt.plot(t, x[1, :], 'r-', label='Velocity')
+    plt.plot(t, np.ones_like(t) * x_ref[0], 'b--', label='Position reference')
+    plt.plot(t, np.ones_like(t) * x_ref[1], 'r--', label='Velocity reference')
+    
+    # Plot state constraints
+    plt.axhline(y=config.x_max[1], color='r', linestyle=':', label='Velocity limits')
+    plt.axhline(y=config.x_min[1], color='r', linestyle=':')
+    
+    plt.grid(True)
+    plt.legend()
+    plt.xlabel('Time [s]')
+    plt.ylabel('State')
+    
+    # Plot control input
+    plt.subplot(3, 1, 2)
+    plt.plot(t[:-1], u[0, :], 'g-', label='Control input')
+    
+    # Plot input constraints
+    plt.axhline(y=config.u_max[0], color='g', linestyle=':', label='Input limits')
+    plt.axhline(y=config.u_min[0], color='g', linestyle=':')
+    
+    plt.grid(True)
+    plt.legend()
+    plt.xlabel('Time [s]')
+    plt.ylabel('Control input')
+    
+    # Plot control mode
+    plt.subplot(3, 1, 3)
+    plt.plot(t[:-1], mode, 'k-', label='Control mode')
+    plt.yticks([0, 1], ['MPC', 'LQR'])
+    plt.grid(True)
+    plt.legend()
+    plt.xlabel('Time [s]')
+    plt.ylabel('Control mode')
+    
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    # Create configurations
+    mpc_config = MPCConfig()
+    system_config = SystemConfig()
+    
+    # Create and run controller
+    controller = MPCController(mpc_config, system_config)
+    t, x, u, mode = controller.run()
+    
+    # Plot results
+    plot_results(t, x, u, mpc_config.reference_state, mode, mpc_config) 
