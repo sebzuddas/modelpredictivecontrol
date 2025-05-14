@@ -4,27 +4,48 @@ class MPCConfig:
     def __init__(self):
         # System parameters
         self.dt = 0.1  # time step
-        self.N = 10    # prediction horizon
+        self.N = 5    # prediction horizon
         
         # System dynamics 
-        self.A = np.array([[1, self.dt],
-                          [0, 1]])
-        self.B = np.array([[0.5 * self.dt**2],
-                          [self.dt]])
+        self.A = np.array([[1, self.dt, 0, 0, 0, 0, 0, 1, 0],
+                        [0, 1, 0, 0, 0, 0, 1, 0, 0],
+                        [0, 0, 1, self.dt, 0, 1, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 0, 1, self.dt, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 1, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0, 1, self.dt, 0],
+                        [0, 1, 0, 0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 1, 0, 0, 0, 0, 1]])
+        
+        # # Square of A matrix for testing
+        # self.A2 = np.matmul(self.A, self.A)
+        # print(self.A2)
+        # exit()
+
+        self.B = np.array([[0.5 * self.dt**2, 0, 0],
+                           [self.dt, 0, 0],
+                           [0, 0.5 * self.dt**2, 0],
+                           [0, self.dt, 0],
+                           [1, 0, 0.5 * self.dt**2],
+                           [1, 0, self.dt],
+                           [1, 0, 0],
+                           [0, 1, 0],
+                           [0, 0, 1]])
+
+        # Cost matrices - make Q more positive definite
+        self.Q = np.diag([1.0, 0.1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])  # state cost
+        self.R = np.diag([1.0, 1.0, 1.0])    # input cost
         
         # System dimensions based on A and B matrices
         self.nx = self.A.shape[0]    # state dimension (from A matrix)
         self.nu = self.B.shape[1]    # input dimension (from B matrix)
         
-        # Cost matrices
-        self.Q = np.diag([1.0, 0.1])  # state cost
-        self.R = np.array([[0.1]])    # input cost
         
         # Constraints
-        self.x_min = np.array([-np.inf, -10.0])  # state constraints
-        self.x_max = np.array([np.inf, 10.0])
-        self.u_min = np.array([-10.0])           # input constraints
-        self.u_max = np.array([10.0])
+        self.x_min = np.array([-10, -10, -10, -10, -10, -10, -10, -10, -10])  # state constraints
+        self.x_max = np.array([10, 10, 10, 10, 10, 10, 10, 10, 10]) # Pass valid JSON into this
+        self.u_min = np.array([-10, -10, -10])           # input constraints
+        self.u_max = np.array([10, 10, 10])
         
         # Terminal region
         self.terminal_region_radius = 0.1
@@ -36,8 +57,8 @@ class MPCConfig:
         
         # Simulation settings
         self.simulation_time = 10.0
-        self.initial_state = np.array([0.0, 0.0])
-        self.reference_state = np.array([1.0, 0.0])
+        self.initial_state = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.reference_state = np.array([1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
         
         # Test dimensions
         self.test()   
@@ -53,6 +74,20 @@ class MPCConfig:
         if self.B.shape[1] != self.R.shape[0]:
             print(f"Error: B matrix columns {self.B.shape[1]} does not match R matrix rows {self.R.shape[0]}")
             return False
+        # Test system observability
+        obs_matrix = np.vstack([self.A**i for i in range(self.nx)])
+        if np.linalg.matrix_rank(obs_matrix) != self.nx:
+            print(f"Warning: System is not observable. Rank of observability matrix: {np.linalg.matrix_rank(obs_matrix)}, should be {self.nx}")
+            
+        # Test system reachability
+        reach_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
+        if np.linalg.matrix_rank(reach_matrix) != self.nx:
+            print(f"Warning: System is not reachable. Rank of reachability matrix: {np.linalg.matrix_rank(reach_matrix)}, should be {self.nx}")
+            
+            # Test system controllability
+            ctrl_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
+            if np.linalg.matrix_rank(ctrl_matrix) != self.nx:
+                print(f"Warning: System is not controllable. Rank of controllability matrix: {np.linalg.matrix_rank(ctrl_matrix)}, should be {self.nx}")
         
         # Test dimensions of x_min and x_max matrices
         if len(self.initial_state) != self.A.shape[0]:
@@ -71,8 +106,11 @@ class MPCConfig:
         if len(self.u_min) != self.nu or len(self.u_max) != self.nu:
             print(f"Error: input constraint vectors length {len(self.u_min)}, {len(self.u_max)} do not match input dimension {self.nu}")
             return False
+        
 
-        print("All tests passed!")
+
+        print("Testing Finished!")
+        
         return True
 
 class SystemConfig:

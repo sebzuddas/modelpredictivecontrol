@@ -80,9 +80,9 @@ def run_simulation():
     
     if controller is None:
         controller = MPCController(mpc_config, system_config)
-    
+
     t, x, u, mode = controller.run()
-    
+
     # Store results
     last_results = {
         't': t.tolist(),
@@ -90,7 +90,7 @@ def run_simulation():
         'u': u.tolist(),
         'mode': mode.tolist()
     }
-    
+
     return jsonify(last_results)
 
 @app.route('/api/results', methods=['GET'])

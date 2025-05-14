@@ -29,14 +29,20 @@ class MPCController:
         self.u = ca.SX.sym('u', self.nu)
         
         # Define system dynamics
-        self.f = ca.vertcat(
-            self.x[1],  # velocity
-            self.u[0]   # acceleration
-        )
+        self.f = ca.mtimes(self.config.A, self.x) + ca.mtimes(self.config.B, self.u)
         
         # Create integrator
         self.dae = {'x': self.x, 'p': self.u, 'ode': self.f}
-        self.integrator = ca.integrator('F', 'cvodes', self.dae, {'tf': self.config.dt})
+        # Try rk4 integrator with more options
+        self.integrator = ca.integrator('F', 'rk',
+                                      self.dae,
+                                      0.0,  # t0
+                                      self.config.dt,  # tf
+                                      {
+                                          'number_of_finite_elements': 4,
+                                          'simplify': True,
+                                          'expand': True
+                                      })
         
         # Compute LQR controller for terminal mode
         self.compute_lqr_gain()
@@ -46,11 +52,17 @@ class MPCController:
     
     def compute_lqr_gain(self):
         """Compute LQR gain for terminal mode"""
-        # Solve discrete-time LQR
-        P = linalg.solve_discrete_are(self.config.A, self.config.B, 
-                                    self.config.Q, self.config.R)
-        self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
-        self.P = P
+        try:
+            # Solve discrete-time LQR
+            P = linalg.solve_discrete_are(self.config.A, self.config.B, 
+                                        self.config.Q, self.config.R)
+            self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
+            self.P = P
+        except np.linalg.LinAlgError:
+            # Fallback to a simpler terminal cost if DARE fails
+            print("Warning: DARE solution not found, using simplified terminal cost")
+            self.P = self.config.Q  # Use Q as terminal cost
+            self.K = np.zeros((self.nu, self.nx))  # Zero gain as fallback
     
     def setup_mpc(self):
         """Setup the dual-mode MPC optimization problem"""
@@ -112,11 +124,18 @@ class MPCController:
     
     def solve(self, x0, x_ref):
         """Solve the MPC problem"""
-        self.opti.set_value(self.x0, x0)
-        self.opti.set_value(self.x_ref, x_ref)
-        
-        sol = self.opti.solve()
-        return sol.value(self.U[:, 0])
+        try:
+            self.opti.set_value(self.x0, x0)
+            self.opti.set_value(self.x_ref, x_ref)
+            
+            sol = self.opti.solve()
+            return sol.value(self.U[:, 0])
+        except Exception as e:
+            print(f"MPC solve failed: {str(e)}")
+            print(f"Current state: {x0}")
+            print(f"Reference state: {x_ref}")
+            # Return a safe control input (e.g., zero)
+            return np.zeros(self.nu)
     
     def get_terminal_control(self, x, x_ref):
         """Get control input from LQR controller"""
@@ -182,36 +201,38 @@ class MPCController:
 
 def plot_results(t, x, u, x_ref, mode, config):
     """Plot simulation results"""
+    # Calculate number of states and inputs
+    n_states = x.shape[0]  # Number of states
+    n_inputs = u.shape[0]  # Number of inputs
+    
     plt.figure(figsize=(12, 12))
     
-    # Plot states
+    # Plot all states on one axis
     plt.subplot(3, 1, 1)
-    plt.plot(t, x[0, :], 'b-', label='Position')
-    plt.plot(t, x[1, :], 'r-', label='Velocity')
-    plt.plot(t, np.ones_like(t) * x_ref[0], 'b--', label='Position reference')
-    plt.plot(t, np.ones_like(t) * x_ref[1], 'r--', label='Velocity reference')
-    
-    # Plot state constraints
-    plt.axhline(y=config.x_max[1], color='r', linestyle=':', label='Velocity limits')
-    plt.axhline(y=config.x_min[1], color='r', linestyle=':')
+    colors = plt.cm.rainbow(np.linspace(0, 1, n_states))
+    for i in range(n_states):
+        plt.plot(t, x[i, :], color=colors[i], label=f'State {i+1}')
+        plt.plot(t, np.ones_like(t) * x_ref[i], '--', color=colors[i], label=f'Reference {i+1}')
+        plt.axhline(y=config.x_max[i], color=colors[i], linestyle=':', label=f'State {i+1} limits')
+        plt.axhline(y=config.x_min[i], color=colors[i], linestyle=':')
     
     plt.grid(True)
     plt.legend()
     plt.xlabel('Time [s]')
-    plt.ylabel('State')
+    plt.ylabel('States')
     
-    # Plot control input
+    # Plot all inputs on one axis
     plt.subplot(3, 1, 2)
-    plt.plot(t[:-1], u[0, :], 'g-', label='Control input')
-    
-    # Plot input constraints
-    plt.axhline(y=config.u_max[0], color='g', linestyle=':', label='Input limits')
-    plt.axhline(y=config.u_min[0], color='g', linestyle=':')
+    colors = plt.cm.rainbow(np.linspace(0, 1, n_inputs))
+    for i in range(n_inputs):
+        plt.plot(t[:-1], u[i, :], color=colors[i], label=f'Input {i+1}')
+        plt.axhline(y=config.u_max[i], color=colors[i], linestyle=':', label=f'Input {i+1} limits')
+        plt.axhline(y=config.u_min[i], color=colors[i], linestyle=':')
     
     plt.grid(True)
     plt.legend()
     plt.xlabel('Time [s]')
-    plt.ylabel('Control input')
+    plt.ylabel('Inputs')
     
     # Plot control mode
     plt.subplot(3, 1, 3)
@@ -224,7 +245,6 @@ def plot_results(t, x, u, x_ref, mode, config):
     
     plt.tight_layout()
     plt.show()
-
 if __name__ == "__main__":
     # Create configurations
     mpc_config = MPCConfig()

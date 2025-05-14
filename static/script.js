@@ -194,18 +194,23 @@ async function saveConfig() {
 async function runSimulation() {
     try {
         const response = await fetch('/api/run', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
         
+        const data = await response.json();
+        console.log('Received data:', data);  // Debug log
+        
         if (!response.ok) {
-            throw new Error('Failed to run simulation');
+            throw new Error(data.error || 'Failed to run simulation');
         }
         
-        const results = await response.json();
-        updatePlots(results);
+        updatePlots(data);
     } catch (error) {
         console.error('Error running simulation:', error);
-        alert('Failed to run simulation');
+        alert(error.message);
     }
 }
 
@@ -215,17 +220,17 @@ function updatePlots(results) {
     const x = results.x;
     const u = results.u;
     const mode = results.mode;
-    
+    const reference_state = results.reference_state;
     // Update state trajectories
     stateChart.data.labels = t;
-    stateChart.data.datasets[0].data = x.map(state => state[0]); // Position
-    stateChart.data.datasets[1].data = x.map(state => state[1]); // Velocity
-    stateChart.data.datasets[2].data = t.map(() => results.reference_state[0]); // Reference
+    stateChart.data.datasets[0].data = x[0]; // Position trajectory
+    stateChart.data.datasets[1].data = x[1]; // Velocity trajectory
+    stateChart.data.datasets[2].data = t.map(() => reference_state[0]); // Reference
     stateChart.update();
     
     // Update control input
     inputChart.data.labels = t;
-    inputChart.data.datasets[0].data = u;
+    inputChart.data.datasets[0].data = u[0];
     inputChart.update();
     
     // Update control mode
