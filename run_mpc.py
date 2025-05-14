@@ -16,8 +16,8 @@ def run_simulation():
     # mpc_config.reference_state = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     
     # Add some noise to the simulation
-    system_config.sim_config['noise_level'] = 0.1
-    system_config.sim_config['disturbance_level'] = 0.1
+    system_config.sim_config['noise_level'] = 0.01
+    system_config.sim_config['disturbance_level'] = 0.001
     
     # Create and run controller
     controller = MPCController(mpc_config, system_config)

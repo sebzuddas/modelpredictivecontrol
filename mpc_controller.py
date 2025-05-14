@@ -44,7 +44,7 @@ class MPCController:
                                           'expand': True
                                       })
         
-        # Compute LQR controller for terminal mode
+        # Compute LQR gain for terminal mode
         self.compute_lqr_gain()
         
         # MPC setup
@@ -53,25 +53,23 @@ class MPCController:
     def compute_lqr_gain(self):
         """Compute LQR gain for terminal mode"""
         try:
-            # Solve discrete-time LQR
+            # Solve discrete-time LQR for terminal cost
             P = linalg.solve_discrete_are(self.config.A, self.config.B, 
                                         self.config.Q, self.config.R)
             self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
             self.P = P
-        except np.linalg.LinAlgError:
-            # Fallback to a simpler terminal cost if DARE fails
-            print("Warning: DARE solution not found, using simplified terminal cost")
-            self.P = self.config.Q  # Use Q as terminal cost
-            self.K = np.zeros((self.nu, self.nx))  # Zero gain as fallback
+            print(f"LQR gain computed successfully: {self.K}")
+        except np.linalg.LinAlgError as e:
+            print(f"DARE failed: {str(e)}")
+            raise  # Don't fall back to zero gain, this is critical
     
     def setup_mpc(self):
         """Setup the dual-mode MPC optimization problem"""
-        # Declare variables
         self.opti = ca.Opti()
         
         # Decision variables
-        self.X = self.opti.variable(self.nx, self.config.N + 1)
-        self.U = self.opti.variable(self.nu, self.config.N)
+        self.X = self.opti.variable(self.nx, self.config.N + 1)  # States from 0 to N
+        self.U = self.opti.variable(self.nu, self.config.N)      # Inputs from 0 to N-1
         
         # Parameters
         self.x0 = self.opti.parameter(self.nx)
@@ -79,17 +77,15 @@ class MPCController:
         
         # Cost function
         cost = 0
+        # Stage cost (0 to N-1)
         for k in range(self.config.N):
-            # State cost
             state_error = self.X[:, k] - self.x_ref
             cost += ca.mtimes([state_error.T, self.config.Q, state_error])
-            
-            # Input cost
             cost += ca.mtimes([self.U[:, k].T, self.config.R, self.U[:, k]])
         
-        # Terminal cost
-        state_error = self.X[:, -1] - self.x_ref
-        cost += ca.mtimes([state_error.T, self.P, state_error])
+        # Terminal cost (N to ∞)
+        terminal_error = self.X[:, -1] - self.x_ref
+        cost += ca.mtimes([terminal_error.T, self.P, terminal_error])
         
         self.opti.minimize(cost)
         
@@ -110,17 +106,21 @@ class MPCController:
                 self.opti.bounded(self.config.u_min, self.U[:, k], self.config.u_max)
             )
         
-        # Terminal state constraint
-        state_error = self.X[:, -1] - self.x_ref
+        # Terminal constraint (ensure LQR is valid)
         self.opti.subject_to(
-            ca.mtimes([state_error.T, self.P, state_error]) <= self.config.terminal_region_radius**2
+            ca.mtimes([terminal_error.T, self.P, terminal_error]) <= self.config.terminal_region_radius**2
         )
         
         # Initial state constraint
         self.opti.subject_to(self.X[:, 0] == self.x0)
         
         # Solver
-        self.opti.solver('ipopt')
+        self.opti.solver('ipopt', {
+            'ipopt.print_level': 5,
+            'print_time': 1,
+            'ipopt.max_iter': 1000,
+            'ipopt.tol': 1e-3
+        })
     
     def solve(self, x0, x_ref):
         """Solve the MPC problem"""
@@ -129,13 +129,15 @@ class MPCController:
             self.opti.set_value(self.x_ref, x_ref)
             
             sol = self.opti.solve()
-            return sol.value(self.U[:, 0])
+            u = sol.value(self.U[:, 0])  # Only use first input
+            print(f"MPC solution found: {u}")
+            return u
         except Exception as e:
             print(f"MPC solve failed: {str(e)}")
             print(f"Current state: {x0}")
             print(f"Reference state: {x_ref}")
-            # Return a safe control input (e.g., zero)
-            return np.zeros(self.nu)
+            # Use LQR as fallback
+            return self.get_terminal_control(x0, x_ref)
     
     def get_terminal_control(self, x, x_ref):
         """Get control input from LQR controller"""
@@ -144,11 +146,6 @@ class MPCController:
         
         u = (self.K @ (x_np - x_ref_np)).flatten()
         return np.clip(u, self.config.u_min, self.config.u_max)
-    
-    def is_in_terminal_region(self, x, x_ref):
-        """Check if state is in terminal region"""
-        state_error = np.array(x).flatten() - np.array(x_ref).flatten()
-        return state_error.T @ self.P @ state_error <= self.config.terminal_region_radius**2
     
     def run(self, x0=None, x_ref=None, T=None):
         """Run the MPC controller"""
@@ -167,26 +164,27 @@ class MPCController:
         t = np.linspace(0, T, N_sim + 1)
         x = np.zeros((self.nx, N_sim + 1))
         u = np.zeros((self.nu, N_sim))
-        mode = np.zeros(N_sim)
+        mode = np.zeros(N_sim)  # 0 for MPC, 1 for LQR
         
         # Initial state
         x[:, 0] = x0
         
         # Control loop
         for k in range(N_sim):
-            # Get current state
             current_state = self.system.get_state()
             if current_state is None:
                 print("Error: Could not get system state")
                 break
             
-            # Compute control input
-            if self.is_in_terminal_region(current_state, x_ref):
-                u[:, k] = self.get_terminal_control(current_state, x_ref)
-                mode[k] = 1
-            else:
+            try:
+                # Try MPC first
                 u[:, k] = self.solve(current_state, x_ref)
                 mode[k] = 0
+            except:
+                # Fall back to LQR if MPC fails
+                u[:, k] = self.get_terminal_control(current_state, x_ref)
+                mode[k] = 1
+                print(f"Switching to LQR at step {k}")
             
             # Apply control input
             next_state = self.system.apply_input(u[:, k])
@@ -212,8 +210,8 @@ def plot_results(t, x, u, x_ref, mode, config):
     colors = plt.cm.rainbow(np.linspace(0, 1, n_states))
     for i in range(n_states):
         plt.plot(t, x[i, :], color=colors[i], label=f'State {i+1}')
-        plt.plot(t, np.ones_like(t) * x_ref[i], '--', color=colors[i], label=f'Reference {i+1}')
-        plt.axhline(y=config.x_max[i], color=colors[i], linestyle=':', label=f'State {i+1} limits')
+        plt.plot(t, np.ones_like(t) * x_ref[i], '--', color=colors[i]) # label=f'Reference {i+1}'
+        plt.axhline(y=config.x_max[i], color=colors[i], linestyle=':') # label=f'State {i+1} limits'
         plt.axhline(y=config.x_min[i], color=colors[i], linestyle=':')
     
     plt.grid(True)
@@ -225,8 +223,8 @@ def plot_results(t, x, u, x_ref, mode, config):
     plt.subplot(3, 1, 2)
     colors = plt.cm.rainbow(np.linspace(0, 1, n_inputs))
     for i in range(n_inputs):
-        plt.plot(t[:-1], u[i, :], color=colors[i], label=f'Input {i+1}')
-        plt.axhline(y=config.u_max[i], color=colors[i], linestyle=':', label=f'Input {i+1} limits')
+        plt.plot(t[:-1], u[i, :], color=colors[i], label=f'Input {i+1}') # , label=f'Input {i+1}'
+        plt.axhline(y=config.u_max[i], color=colors[i], linestyle=':') # , label=f'Input {i+1} limits'
         plt.axhline(y=config.u_min[i], color=colors[i], linestyle=':')
     
     plt.grid(True)
