@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 from config import MPCConfig, SystemConfig
 from system_interface import create_system_interface
+import os
+import json
+from datetime import datetime
+from tqdm import tqdm
+
 
 class MPCController:
     def __init__(self, mpc_config, system_config):
@@ -58,7 +63,7 @@ class MPCController:
                                         self.config.Q, self.config.R)
             self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
             self.P = P
-            print(f"LQR gain computed successfully: {self.K}")
+            print(f"LQR gain computed successfully!")# {self.K}")
         except np.linalg.LinAlgError as e:
             print(f"DARE failed: {str(e)}")
             raise  # Don't fall back to zero gain, this is critical
@@ -116,8 +121,8 @@ class MPCController:
         
         # Solver
         self.opti.solver('ipopt', {
-            'ipopt.print_level': 5,
-            'print_time': 1,
+            'ipopt.print_level': 0,
+            'print_time': 0,
             'ipopt.max_iter': 1000,
             'ipopt.tol': 1e-3
         })
@@ -127,15 +132,18 @@ class MPCController:
         try:
             self.opti.set_value(self.x0, x0)
             self.opti.set_value(self.x_ref, x_ref)
-            
             sol = self.opti.solve()
             u = sol.value(self.U[:, 0])  # Only use first input
-            print(f"MPC solution found: {u}")
+            # print(f"MPC solution found: {u}")
+            # print(f"Current state: \n{x0}")
+            # print(f"Reference state: \n{x_ref}")
+            # print(f"Difference: \n{x_ref - x0}")
             return u
         except Exception as e:
-            print(f"MPC solve failed: {str(e)}")
-            print(f"Current state: {x0}")
-            print(f"Reference state: {x_ref}")
+            # print(f"MPC solve FAILED: {str(e)}")
+            # print(f"Current state: \n{x0}")
+            # print(f"Reference state: \n{x_ref}")
+            # print(f"Difference: \n{x_ref - x0}")
             # Use LQR as fallback
             return self.get_terminal_control(x0, x_ref)
     
@@ -147,10 +155,12 @@ class MPCController:
         u = (self.K @ (x_np - x_ref_np)).flatten()
         return np.clip(u, self.config.u_min, self.config.u_max)
     
-    def run(self, x0=None, x_ref=None, T=None):
+    def run(self, x0=None, u0=None, x_ref=None, T=None):
         """Run the MPC controller"""
         if x0 is None:
             x0 = self.config.initial_state
+        if u0 is None:
+            u0 = self.config.initial_input
         if x_ref is None:
             x_ref = self.config.reference_state
         if T is None:
@@ -166,14 +176,25 @@ class MPCController:
         u = np.zeros((self.nu, N_sim))
         mode = np.zeros(N_sim)  # 0 for MPC, 1 for LQR
         
-        # Initial state
+        # Initial state and input
         x[:, 0] = x0
+        u[:, 0] = u0  # Set initial input
+
+        self.print_simulation_parameters()
+
+        next_state = self.system.apply_input(u[:, 0])
+        if next_state is None:
+            print("Error: Could not apply initial control input")
+            return t, x, u, mode
+        x[:, 1] = next_state
         
-        # Control loop
-        for k in range(N_sim):
+        # Control loop (start from k=1 since we've already applied initial input)
+
+        for k in tqdm(range(1, N_sim), desc="Simulating"):
+            # print("Simulation_iteration: ", {k})
             current_state = self.system.get_state()
             if current_state is None:
-                print("Error: Could not get system state")
+                # print("Error: Could not get system state") 
                 break
             
             try:
@@ -184,12 +205,12 @@ class MPCController:
                 # Fall back to LQR if MPC fails
                 u[:, k] = self.get_terminal_control(current_state, x_ref)
                 mode[k] = 1
-                print(f"Switching to LQR at step {k}")
+                # print(f"Switching to LQR at step {k}")
             
             # Apply control input
             next_state = self.system.apply_input(u[:, k])
             if next_state is None:
-                print("Error: Could not apply control input")
+                # print("Error: Could not apply control input")
                 break
             
             # Store results
@@ -197,14 +218,44 @@ class MPCController:
         
         return t, x, u, mode
 
+    def print_simulation_parameters(self):
+
+        # Apply initial input first
+        print("*"*50)
+        print("Simulation Configuration")
+        print("*"*50)
+        print("Starting parameters:")
+        print(f"Initial state: \n{self.config.initial_state}")
+        print(f"Initial reference state: \n{self.config.reference_state}")
+        print(f"Initial input: \n{self.config.initial_input}")
+        print("-"*50)
+        print("Tuning Parameters:")
+        print(f"Q: \n{self.config.Q}")
+        print(f"R: \n{self.config.R}")
+        print(f"N: {self.config.N}")
+        print(f"dt: {self.config.dt}")
+        print(f"terminal region radius: {self.config.terminal_region_radius}")
+        print("-"*50)
+        print("System dynamics:")
+        print(f"A: \n{self.config.A}")
+        print(f"B: \n{self.config.B}")
+        print("-"*50)
+        print("State & Input constraints:")
+        print(f"x_min: \n{self.config.x_min}")
+        print(f"x_max: \n{self.config.x_max}")
+        print(f"u_min: \n{self.config.u_min}")
+        print(f"u_max: \n{self.config.u_max}")
+        print("-"*50)
+        print("*"*50)
+
+
 def plot_results(t, x, u, x_ref, mode, config):
     """Plot simulation results"""
     # Calculate number of states and inputs
     n_states = x.shape[0]  # Number of states
     n_inputs = u.shape[0]  # Number of inputs
     
-    plt.figure(figsize=(12, 12))
-    
+
     # Plot all states on one axis
     plt.subplot(3, 1, 1)
     colors = plt.cm.rainbow(np.linspace(0, 1, n_states))
@@ -232,14 +283,16 @@ def plot_results(t, x, u, x_ref, mode, config):
     plt.xlabel('Time [s]')
     plt.ylabel('Inputs')
     
-    # Plot control mode
-    plt.subplot(3, 1, 3)
-    plt.plot(t[:-1], mode, 'k-', label='Control mode')
-    plt.yticks([0, 1], ['MPC', 'LQR'])
-    plt.grid(True)
-    plt.legend()
-    plt.xlabel('Time [s]')
-    plt.ylabel('Control mode')
+    # 3D position plot
+    ax1 = plt.subplot(3, 1, 3, projection='3d')
+    ax1.plot(x[0,:], x[2,:], x[4,:], 'b-', label='Trajectory')
+    ax1.scatter(x_ref[0], x_ref[2], x_ref[4], color='r', marker='*', s=100, label='Target')
+    ax1.set_xlabel('X [m]')
+    ax1.set_ylabel('Y [m]')
+    ax1.set_zlabel('Z [m]')
+    ax1.grid(True)
+    ax1.legend()
+    
     
     plt.tight_layout()
     plt.show()

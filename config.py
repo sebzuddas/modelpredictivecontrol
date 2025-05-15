@@ -3,8 +3,8 @@ import numpy as np
 class MPCConfig:
     def __init__(self):
         # System parameters
-        self.dt = 0.05  # Smaller time step
-        self.N = 8    # prediction horizon (increased for better trajectory planning)
+        self.dt = 1  # Time step
+        self.N = 8    # Prediction horizon (increased for better trajectory planning)
         
         # State vector: [x, vx, y, vy, z, vz, phi, theta, psi]
         # x,y,z: position
@@ -44,7 +44,7 @@ class MPCConfig:
                           0.1, # vx
                           1.0, # y
                           0.1, # vy
-                          5.0, # z
+                          10, # z
                           0.1, # vz
                           0.01, # phi
                           0.01, # theta
@@ -74,8 +74,9 @@ class MPCConfig:
         self.api_timeout = 1.0  # seconds
         
         # Simulation settings
-        self.simulation_time = 15.0
-        self.initial_state = np.zeros(9)  # Start at origin with zero velocities and angles
+        self.simulation_time = 8
+        self.initial_state = np.zeros(self.nx)  # Start at origin with zero velocities and angles
+        self.initial_input = np.zeros(self.nu)
         self.reference_state = np.array([10.0, 0.0, 10.0, 0.0, 10, 0.0, 0.0, 0.0, 0.0])  # Target position [1,1,1]
         
         # Test dimensions
@@ -104,8 +105,9 @@ class MPCConfig:
         # Test system reachability
         reach_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
         if np.linalg.matrix_rank(reach_matrix) != self.nx:
-            raise ValueError(f"System is not reachable. Rank of reachability matrix: {np.linalg.matrix_rank(reach_matrix)}, should be {self.nx}")
-            
+            print(f"System is not reachable. Rank of reachability matrix: {np.linalg.matrix_rank(reach_matrix)}, should be {self.nx}")
+            print(f"Testing controllability...")
+    
             # Test system controllability
             ctrl_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
             if np.linalg.matrix_rank(ctrl_matrix) != self.nx:
