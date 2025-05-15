@@ -180,7 +180,7 @@ class MPCController:
         x[:, 0] = x0
         u[:, 0] = u0  # Set initial input
 
-        self.print_simulation_parameters()
+        # self.print_simulation_parameters()
 
         next_state = self.system.apply_input(u[:, 0])
         if next_state is None:

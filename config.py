@@ -3,8 +3,8 @@ import numpy as np
 class MPCConfig:
     def __init__(self):
         # System parameters
-        self.dt = 1  # Time step
-        self.N = 8    # Prediction horizon (increased for better trajectory planning)
+        self.dt = 0.001  # Time step
+        self.N = 15    # Prediction horizon (increased for better trajectory planning)
         
         # State vector: [x, vx, y, vy, z, vz, phi, theta, psi]
         # x,y,z: position
