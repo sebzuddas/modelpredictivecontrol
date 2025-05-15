@@ -6,7 +6,7 @@ from pysindy import SINDy
 from pysindy.optimizers import STLSQ
 from pysindy.feature_library import PolynomialLibrary
 from config import MPCConfig
-from sindy_identifier import identify_and_update_system
+# from sindy_identifier import identify_and_update_system
 
 class SystemInterface(ABC):
     @abstractmethod
@@ -240,32 +240,32 @@ def create_system_interface(system_config, mpc_config):
     else:
         raise ValueError(f"Unknown system type: {system_config.system_type}")
 
-def identify_and_update_system(system_interface, mpc_config, T=10.0):
-    """
-    Identify system and update MPC configuration
+# def identify_and_update_system(system_interface, mpc_config, T=10.0):
+#     """
+#     Identify system and update MPC configuration
     
-    Parameters:
-    -----------
-    system_interface : SystemInterface
-        Interface to the system
-    mpc_config : MPCConfig
-        MPC configuration to update
-    T : float
-        Duration of data collection
-    """
-    # Create identifier
-    identifier = SINDYcIdentifier(dt=mpc_config.dt)
+#     Parameters:
+#     -----------
+#     system_interface : SystemInterface
+#         Interface to the system
+#     mpc_config : MPCConfig
+#         MPC configuration to update
+#     T : float
+#         Duration of data collection
+#     """
+#     # Create identifier
+#     identifier = SINDYcIdentifier(dt=mpc_config.dt)
     
-    # Collect data
-    x, u = identifier.collect_data(system_interface, T=T)
+#     # Collect data
+#     x, u = identifier.collect_data(system_interface, T=T)
     
-    # Identify system
-    A, B = identifier.identify_system(x, u)
+#     # Identify system
+#     A, B = identifier.identify_system(x, u)
     
-    # Update MPC config
-    mpc_config = identifier.update_mpc_config(mpc_config)
+#     # Update MPC config
+#     mpc_config = identifier.update_mpc_config(mpc_config)
     
-    return mpc_config, A, B 
+#     return mpc_config, A, B 
 
 def run_simulation():
     """Run the MPC controller in simulation mode"""
