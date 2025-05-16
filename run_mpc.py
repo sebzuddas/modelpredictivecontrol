@@ -11,8 +11,8 @@ import multiprocessing
 
 def evaluate_individual(individual, mpc_config, system_config, timestamp, optimization_dir, iteration):
     """Global evaluation function for parallel processing"""
-    Q = np.diag(individual[:9])
-    R = np.diag(individual[9:])
+    Q = np.diag(individual[:mpc_config.Q.shape[0]])
+    R = np.diag(individual[mpc_config.Q.shape[0]:mpc_config.Q.shape[0] + mpc_config.R.shape[0]])
     
     mpc_config.Q = Q
     mpc_config.R = R
@@ -90,17 +90,22 @@ class MPCGeneticOptimizer:
         mpc_config.Q = Q
         mpc_config.R = R
         
-        controller = MPCController(mpc_config, system_config)
-        t, x, u, mode = controller.run()
-        
-        error = np.sum(np.linalg.norm(x - mpc_config.reference_state.reshape(-1, 1), axis=0))
-        
-        save_simulation_data(t, x, u, mode, mpc_config, 
-                            timestamp=timestamp,
-                            iteration=iteration,
-                            optimization_dir=optimization_dir)
-        
-        return (error,)
+        try:
+            controller = MPCController(mpc_config, system_config)
+            t, x, u, mode = controller.run()
+            
+            error = np.sum(np.linalg.norm(x - mpc_config.reference_state.reshape(-1, 1), axis=0))
+            
+            save_simulation_data(t, x, u, mode, mpc_config, 
+                               timestamp=timestamp,
+                               iteration=iteration,
+                               optimization_dir=optimization_dir)
+            
+            return (error,)
+            
+        except (np.linalg.LinAlgError, ValueError) as e:
+            print(f"Invalid solution for individual: {e}")
+            return (float('inf'),)  # Return worst possible fitness
     
     def optimize(self, mpc_config, system_config):
         """Run genetic algorithm optimization with parallel processing"""
@@ -339,19 +344,22 @@ def run_optimization(pop_size=2, n_gen=2):
     print(f"Best R: {np.diag(best_ind[mpc_config.Q.shape[0]:mpc_config.Q.shape[0] + mpc_config.R.shape[0]])}")
 
 if __name__ == "__main__":
+    import argparse
     
+    parser = argparse.ArgumentParser(description='Run MPC controller in different modes')
+    parser.add_argument('mode', choices=['simulation', 'api', 'optimization'], 
+                      help='Mode to run: simulation, api, or optimization')
+    parser.add_argument('--pop-size', type=int, default=20,
+                      help='Population size for optimization (default: 20)')
+    parser.add_argument('--n-gen', type=int, default=50, 
+                      help='Number of generations for optimization (default: 50)')
     
-    # Choose mode: 'simulation' or 'api' or 'optimization'
-    mode = 'optimization'
+    args = parser.parse_args()
     
-    if mode == 'simulation':
+    if args.mode == 'simulation':
         run_simulation()
-    elif mode == 'api':
+    elif args.mode == 'api':
         run_api()
-    elif mode == 'optimization':
-        # Set multiprocessing start method  
+    elif args.mode == 'optimization':
         multiprocessing.set_start_method('spawn')
-        run_optimization(pop_size=20, n_gen=50)
-    else:
-        print(f"Unknown mode: {mode}")
-        print("Available modes: 'simulation', 'api', 'optimization'") 
+        run_optimization(pop_size=args.pop_size, n_gen=args.n_gen)
