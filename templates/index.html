@@ -3,149 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPC Controller Interface</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <title>MPC Controller</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3 sidebar">
-                <h3 class="mt-3 mb-4">MPC Configuration</h3>
-                
+<body>
+    <div id="root">
+        <header>
+            <h1>Understanding Model Predictive Control (MPC)</h1>
+            <p>Model Predictive Control (MPC) is an advanced method of process control that is used to control a process while satisfying a set of constraints. It has been in use in the process industries in chemical plants and oil refineries since the 1980s. In recent years it has also been used in power system balancing, power electronics, and automotive applications.</p>
+            <p>MPC uses an explicit dynamic model of the process to predict the future behavior of the plant. At each control interval, an optimal control problem is solved over a finite prediction horizon to determine a sequence of future control actions. Only the first control action in the sequence is applied to the plant, and the process is repeated at the next control interval with new measurements.</p>
+        </header>
+
+        <section id="interactive-simulation">
+            <h2>Interactive MPC Simulation</h2>
+            <p>Explore the concepts of MPC through this interactive simulation. Adjust parameters and observe how the controller predicts and optimizes the system's behavior.</p>
+            <div class="controls">
                 <!-- System Type Selection -->
-                <div class="mb-4">
-                    <label class="form-label">System Type</label>
-                    <select class="form-select" id="systemType">
-                        <option value="simulation">Simulation</option>
-                        <option value="api">API</option>
-                    </select>
-                </div>
+                <label for="systemType">System Type:</label>
+                <select id="systemType">
+                    <option value="continuous">Continuous</option>
+                    <option value="discrete">Discrete</option>
+                </select>
 
                 <!-- MPC Parameters -->
-                <div class="mb-4">
-                    <h5>MPC Parameters</h5>
-                    <div class="mb-3">
-                        <label class="form-label">Time Step (dt)</label>
-                        <input type="number" class="form-control" id="dt" step="0.1">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Horizon Length (N)</label>
-                        <input type="number" class="form-control" id="horizon">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Simulation Time</label>
-                        <input type="number" class="form-control" id="simTime" step="0.1">
-                    </div>
-                </div>
+                <fieldset>
+                    <legend>MPC Parameters</legend>
+                    <label for="dt">Sampling Time (dt):</label>
+                    <input type="number" id="dt" step="0.01" value="0.1">
 
-                <!-- Cost Matrices -->
-                <div class="mb-4">
-                    <h5>Cost Matrices</h5>
-                    <div class="mb-3">
-                        <label class="form-label">State Cost (Q)</label>
-                        <div class="row">
-                            <div class="col">
-                                <input type="number" class="form-control" id="Q1" step="0.1">
-                            </div>
-                            <div class="col">
-                                <input type="number" class="form-control" id="Q2" step="0.1">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Input Cost (R)</label>
-                        <input type="number" class="form-control" id="R" step="0.1">
-                    </div>
-                </div>
+                    <label for="horizon">Prediction Horizon (N):</label>
+                    <input type="number" id="horizon" step="1" value="10">
+
+                    <label for="simTime">Simulation Time (s):</label>
+                    <input type="number" id="simTime" step="1" value="20">
+                </fieldset>
+
+                <!-- Cost Function Weights -->
+                <fieldset>
+                    <legend>Cost Function Weights (Q, R)</legend>
+                    <label for="Q1">Q1 (Position Weight):</label>
+                    <input type="number" id="Q1" step="0.1" value="1.0">
+
+                    <label for="Q2">Q2 (Velocity Weight):</label>
+                    <input type="number" id="Q2" step="0.1" value="0.1">
+
+                    <label for="R">R (Control Input Weight):</label>
+                    <input type="number" id="R" step="0.01" value="0.01">
+                </fieldset>
 
                 <!-- Constraints -->
-                <div class="mb-4">
-                    <h5>Constraints</h5>
-                    <div class="mb-3">
-                        <label class="form-label">Velocity Limits</label>
-                        <div class="row">
-                            <div class="col">
-                                <input type="number" class="form-control" id="vMin" step="0.1">
-                            </div>
-                            <div class="col">
-                                <input type="number" class="form-control" id="vMax" step="0.1">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Input Limits</label>
-                        <div class="row">
-                            <div class="col">
-                                <input type="number" class="form-control" id="uMin" step="0.1">
-                            </div>
-                            <div class="col">
-                                <input type="number" class="form-control" id="uMax" step="0.1">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <fieldset>
+                    <legend>Constraints</legend>
+                    <label for="vMin">Min Velocity:</label>
+                    <input type="number" id="vMin" step="0.1" value="-1.0">
+
+                    <label for="vMax">Max Velocity:</label>
+                    <input type="number" id="vMax" step="0.1" value="1.0">
+
+                    <label for="uMin">Min Control Input:</label>
+                    <input type="number" id="uMin" step="0.1" value="-1.0">
+
+                    <label for="uMax">Max Control Input:</label>
+                    <input type="number" id="uMax" step="0.1" value="1.0">
+                </fieldset>
 
                 <!-- Initial and Reference States -->
-                <div class="mb-4">
-                    <h5>States</h5>
-                    <div class="mb-3">
-                        <label class="form-label">Initial Position</label>
-                        <input type="number" class="form-control" id="initPos" step="0.1">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Reference Position</label>
-                        <input type="number" class="form-control" id="refPos" step="0.1">
-                    </div>
-                </div>
+                <fieldset>
+                    <legend>States</legend>
+                    <label for="initPos">Initial Position:</label>
+                    <input type="number" id="initPos" step="0.1" value="0.0">
 
-                <!-- Action Buttons -->
-                <div class="mb-4">
-                    <button class="btn btn-primary w-100 mb-2" id="saveConfig">Save Configuration</button>
-                    <button class="btn btn-success w-100" id="runSimulation">Run Simulation</button>
+                    <label for="refPos">Reference Position:</label>
+                    <input type="number" id="refPos" step="0.1" value="5.0">
+                </fieldset>
+
+                <button id="saveConfig">Save Configuration</button>
+                <button id="runSimulation">Run Simulation</button>
+            </div>
+            
+            <div class="plots-container">
+                <div class="plot">
+                    <h3>State Trajectories</h3>
+                    <canvas id="statePlot"></canvas>
+                </div>
+                <div class="plot">
+                    <h3>Control Input</h3>
+                    <canvas id="inputPlot"></canvas>
+                </div>
+                <div class="plot">
+                    <h3>Control Mode</h3>
+                    <canvas id="modePlot"></canvas>
                 </div>
             </div>
+        </section>
 
-            <!-- Main Content -->
-            <div class="col-md-9 main-content">
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">State Trajectories</h5>
-                                <canvas id="statePlot"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Control Input</h5>
-                                <canvas id="inputPlot"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Control Mode</h5>
-                                <canvas id="modePlot"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section id="further-reading">
+            <h2>Further Reading & Resources</h2>
+            <ul>
+                <li><a href="https://en.wikipedia.org/wiki/Model_predictive_control" target="_blank">Model Predictive Control on Wikipedia</a></li>
+                <li><a href="https://www.coursera.org/courses?query=model%20predictive%20control" target="_blank">MPC Courses on Coursera</a></li>
+                <li><a href="https://www.edx.org/learn/control-systems" target="_blank">Control Systems Courses on edX</a></li>
+                <li><a href="https://ieeexplore.ieee.org/browse/journals/title/IEEE+Transactions+on+Automatic+Control" target="_blank">IEEE Transactions on Automatic Control</a></li>
+            </ul>
+        </section>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
-</html> 
+</html>

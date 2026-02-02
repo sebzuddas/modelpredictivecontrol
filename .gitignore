@@ -1,9 +1,11 @@
 *.log
 *.png
 *.pdf
-*.html
 *.json
 *.yaml
 *.yml
 data/*
 media/*
+__pycache__/
+*.pyc
+plan/
