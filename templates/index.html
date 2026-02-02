@@ -13,6 +13,37 @@
             <h1>Understanding Model Predictive Control (MPC)</h1>
             <p>Model Predictive Control (MPC) is an advanced method of process control that is used to control a process while satisfying a set of constraints. It has been in use in the process industries in chemical plants and oil refineries since the 1980s. In recent years it has also been used in power system balancing, power electronics, and automotive applications.</p>
             <p>MPC uses an explicit dynamic model of the process to predict the future behavior of the plant. At each control interval, an optimal control problem is solved over a finite prediction horizon to determine a sequence of future control actions. Only the first control action in the sequence is applied to the plant, and the process is repeated at the next control interval with new measurements.</p>
+
+            <h2>Core Concepts of Model Predictive Control</h2>
+            <p>At its heart, MPC is an optimization-based control strategy that leverages a dynamic model of the system to predict future behavior. This prediction allows it to choose control actions that optimize a performance objective over a future time horizon, while explicitly respecting system constraints.</p>
+
+            <h3>Key Components of MPC:</h3>
+            <ul>
+                <li>
+                    <strong>Prediction Model:</strong> This is a mathematical representation of the system's dynamics. It forecasts how the system will evolve over a future time window (the "prediction horizon") in response to current and future control actions, as well as disturbances.
+                </li>
+                <li>
+                    <strong>Cost Function (Objective Function):</strong> At each step, MPC solves an optimization problem to find the best control inputs. The cost function quantifies what "best" means, typically penalizing deviations from a desired reference, excessive control effort, or constraint violations.
+                </li>
+                <li>
+                    <strong>Constraints:</strong> MPC can explicitly handle various operational limits, such as limits on actuator magnitudes (e.g., maximum motor thrust), rates of change, and state variables (e.g., maximum temperature, safe operating zones). This is a significant advantage over traditional control methods.
+                </li>
+                <li>
+                    <strong>Optimizer:</strong> A numerical solver that finds the sequence of control inputs over the prediction horizon that minimizes the cost function while satisfying all defined constraints.
+                </li>
+                <li>
+                    <strong>Receding Horizon Principle:</strong> Only the first control action from the optimal sequence is applied to the physical system. At the next sampling instant, new measurements are taken, the prediction horizon is shifted forward, and the optimization problem is solved again. This iterative process allows MPC to adapt to disturbances and model inaccuracies.
+                </li>
+            </ul>
+
+            <h3>Benefits of MPC:</h3>
+            <ul>
+                <li><strong>Optimal Control:</strong> MPC inherently seeks to optimize system performance according to a defined objective, often leading to more efficient and precise control.</li>
+                <li><strong>Constraint Handling:</strong> Its ability to explicitly incorporate system constraints makes it ideal for complex industrial processes and safety-critical applications.</li>
+                <li><strong>Multi-Variable Control:</strong> MPC excels at controlling systems with multiple interacting inputs and outputs, managing complex trade-offs.</li>
+                <li><strong>Disturbance Rejection:</strong> The receding horizon strategy allows MPC to continuously react to and compensate for unforeseen disturbances and changes in the system.</li>
+                <li><strong>Wide Applicability:</strong> Used across various fields including chemical plants, aerospace, robotics, automotive, and renewable energy systems.</li>
+            </ul>
         </header>
 
         <section id="interactive-simulation">
@@ -100,11 +131,25 @@
 
         <section id="further-reading">
             <h2>Further Reading & Resources</h2>
+            <h3>Academic Resources & Tutorials</h3>
             <ul>
-                <li><a href="https://en.wikipedia.org/wiki/Model_predictive_control" target="_blank">Model Predictive Control on Wikipedia</a></li>
-                <li><a href="https://www.coursera.org/courses?query=model%20predictive%20control" target="_blank">MPC Courses on Coursera</a></li>
-                <li><a href="https://www.edx.org/learn/control-systems" target="_blank">Control Systems Courses on edX</a></li>
-                <li><a href="https://ieeexplore.ieee.org/browse/journals/title/IEEE+Transactions+on+Automatic+Control" target="_blank">IEEE Transactions on Automatic Control</a></li>
+                <li><a href="https://apmonitor.com/wiki/index.php/Main/ModelPredictiveControl" target="_blank">APMonitor Model Predictive Control Tutorial</a></li>
+                <li><a href="https://aleksandarhaber.com/model-predictive-control-mpc-tutorial-1-unconstrained-formulation-derivation-and-implementation-in-python-from-scratch/" target="_blank">Model Predictive Control (MPC) Tutorial by Aleksandar Haber</a></li>
+                <li><a href="https://arxiv.org/abs/1703.00331" target="_blank">Implementation of Linear Model Predictive Control - Tutorial (Technical University of Munich)</a></li>
+            </ul>
+
+            <h3>Textbooks</h3>
+            <ul>
+                <li><a href="https://lateknightbooks.com/book/model-predictive-control/" target="_blank">"Model Predictive Control" by Camacho and Bordons</a></li>
+                <li><a href="https://nobhillpublishing.com/mpc-book/" target="_blank">"Model Predictive Control: Theory, Computation, and Design" by James B. Rawlings, David Q. Mayne, and Moritz M. Diehl</a></li>
+                <li><a href="https://www.goodreads.com/book/show/895315.Predictive_Control_with_Constraints" target="_blank">"Predictive Control with Constraints" by J. M. Maciejowski</a></li>
+            </ul>
+
+            <h3>Software Toolboxes</h3>
+            <ul>
+                <li><a href="https://www.mathworks.com/products/model-predictive-control.html" target="_blank">MATLAB Model Predictive Control Toolbox</a></li>
+                <li><a href="https://do-mpc.com/" target="_blank">do-mpc (Python)</a></li>
+                <li><a href="https://sourceforge.net/projects/mpctools/" target="_blank">MPCtools (MATLAB/Simulink)</a></li>
             </ul>
         </section>
     </div>
