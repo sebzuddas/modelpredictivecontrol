@@ -63,7 +63,7 @@ class MPCController:
                                         self.config.Q, self.config.R)
             self.K = -np.linalg.inv(self.config.R + self.config.B.T @ P @ self.config.B) @ self.config.B.T @ P @ self.config.A
             self.P = P
-            print(f"LQR gain computed successfully!")# {self.K}")
+            print("LQR gain computed successfully!")  # {self.K}")
         except np.linalg.LinAlgError as e:
             print(f"DARE failed: {str(e)}")
             raise  # Don't fall back to zero gain, this is critical
@@ -201,7 +201,7 @@ class MPCController:
                 # Try MPC first
                 u[:, k] = self.solve(current_state, x_ref)
                 mode[k] = 0
-            except:
+            except Exception as e:
                 # Fall back to LQR if MPC fails
                 u[:, k] = self.get_terminal_control(current_state, x_ref)
                 mode[k] = 1
@@ -216,9 +216,11 @@ class MPCController:
             # Store results
             x[:, k+1] = next_state
         
-        return t, x, u, mode
-
-    def print_simulation_parameters(self):
+                return t, x, u, mode
+        
+        
+        
+            def print_simulation_parameters(self):
 
         # Apply initial input first
         print("*"*50)
@@ -294,9 +296,16 @@ def plot_results(t, x, u, x_ref, mode, config):
     ax1.legend()
     
     
-    plt.tight_layout()
-    plt.show()
-if __name__ == "__main__":
+        plt.tight_layout()
+    
+    
+        plt.show()
+    
+    
+    
+    
+    
+    if __name__ == "__main__":
     # Create configurations
     mpc_config = MPCConfig()
     system_config = SystemConfig()
@@ -306,4 +315,4 @@ if __name__ == "__main__":
     t, x, u, mode = controller.run()
     
     # Plot results
-    plot_results(t, x, u, mpc_config.reference_state, mode, mpc_config) 
+    plot_results(t, x, u, mpc_config.reference_state, mode, mpc_config)

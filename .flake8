@@ -1,0 +1,4 @@
+[flake8]
+exclude = venv,.git,__pycache__,casadi_cursor_test
+ignore = E501,F841,F401,F403,F405,W291,W293,E128,E302,E305,E226,E231,E261
+max-line-length = 120

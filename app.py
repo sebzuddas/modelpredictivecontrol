@@ -45,7 +45,6 @@ def get_config():
 @app.route('/api/config', methods=['POST'])
 def update_config():
     """Update configuration"""
-    global mpc_config, system_config, controller
     
     data = request.json
     
@@ -101,4 +100,4 @@ def get_results():
     return jsonify(last_results)
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True)

@@ -31,13 +31,12 @@ class MPCConfig:
             [0, 0, 0, 0],           # vx
             [0, 0, 0, 0],           # y (affected by pitch/roll through dynamics)
             [0, 0, 0, 0],           # vy
-            [self.dt**2/2, 0, 0, 0], # z (directly affected by thrust)
-            [self.dt, 0, 0, 0],      # vz
+            [self.dt**2 / 2, 0, 0, 0],  # z (directly affected by thrust)
+            [self.dt, 0, 0, 0],       # vz
             [0, self.dt, 0, 0],      # phi (roll)
             [0, 0, self.dt, 0],      # theta (pitch)
             [0, 0, 0, self.dt]       # psi (yaw)
         ])
-
 
         # Cost matrices
         self.Q = np.diag([1.0, # x
@@ -106,7 +105,7 @@ class MPCConfig:
         reach_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
         if np.linalg.matrix_rank(reach_matrix) != self.nx:
             print(f"System is not reachable. Rank of reachability matrix: {np.linalg.matrix_rank(reach_matrix)}, should be {self.nx}")
-            print(f"Testing controllability...")
+            print("Testing controllability...")
     
             # Test system controllability
             ctrl_matrix = np.hstack([np.linalg.matrix_power(self.A, i) @ self.B for i in range(self.nx)])
@@ -127,10 +126,7 @@ class MPCConfig:
         if len(self.u_min) != self.nu or len(self.u_max) != self.nu:
             raise ValueError(f"Input constraint vectors length {len(self.u_min)}, {len(self.u_max)} do not match input dimension {self.nu}")
         
-
-
         print("Testing Finished!")
-        
         return True
 
 class SystemConfig:
@@ -152,4 +148,4 @@ class SystemConfig:
             'dt': 0.1,
             'noise_level': 0.0,  # Add noise to simulation
             'disturbance_level': 0.0  # Add disturbances to simulation
-        } 
+        }

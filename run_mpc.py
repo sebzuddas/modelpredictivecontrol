@@ -135,7 +135,7 @@ class MPCGeneticOptimizer:
                     fitnesses = pool.map(
                         self.evaluate_individual,
                         [(ind, mpc_config, system_config, self.optimization_timestamp, 
-                          self.optimization_dir, self.iteration + i) 
+                          self.optimization_dir, self.iteration + i)
                          for i, ind in enumerate(invalid_ind)]
                     )
                     

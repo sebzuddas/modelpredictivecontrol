@@ -11,8 +11,8 @@ class DroneTrajectory(ThreeDScene):
             """Load simulation data from a directory"""
             # Find all iteration directories
             iteration_dirs = [d for d in os.listdir(simulation_dir) 
-                            if os.path.isdir(os.path.join(simulation_dir, d)) 
-                            and d.startswith('iteration_')]
+                            if os.path.isdir(os.path.join(simulation_dir, d)) and
+                            d.startswith('iteration_')]
             iteration_dirs.sort(key=lambda x: int(x.split('_')[1]))
             
             all_iterations = []

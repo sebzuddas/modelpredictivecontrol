@@ -170,8 +170,8 @@ def create_trajectory_video(simulation_dir, output_file="trajectory_animation.ht
     """Create an animated visualization of all iterations"""
     # Find all iteration directories
     iteration_dirs = [d for d in os.listdir(simulation_dir) 
-                     if os.path.isdir(os.path.join(simulation_dir, d)) 
-                     and d.startswith('iteration_')]
+                     if os.path.isdir(os.path.join(simulation_dir, d)) and \
+                     d.startswith('iteration_')]
     iteration_dirs.sort(key=lambda x: int(x.split('_')[1]))  # Sort by iteration number
     
     # Create figure
@@ -317,9 +317,8 @@ if __name__ == "__main__":
         if args.all:
             # Find all iteration directories
             iteration_dirs = [d for d in os.listdir(latest_sim_dir) 
-                            if os.path.isdir(os.path.join(latest_sim_dir, d)) 
-                            and d.startswith('iteration_')]
-            iteration_dirs.sort(key=lambda x: int(x.split('_')[1]))  # Sort by iteration number
+                                                 if os.path.isdir(os.path.join(latest_sim_dir, d)) and \
+                                                 d.startswith('iteration_')]            iteration_dirs.sort(key=lambda x: int(x.split('_')[1]))  # Sort by iteration number
             
             # Create paths for all iterations
             iteration_paths = [os.path.join(latest_sim_dir, d) for d in iteration_dirs]
