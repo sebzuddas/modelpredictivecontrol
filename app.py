@@ -51,8 +51,8 @@ def update_config():
     # Update MPC config
     mpc_config.dt = float(data['mpc']['dt'])
     mpc_config.N = int(data['mpc']['N'])
-    mpc_config.Q = np.array(data['mpc']['Q'])
-    mpc_config.R = np.array(data['mpc']['R'])
+    mpc_config.Q = np.diag(data['mpc']['Q'])
+    mpc_config.R = np.diag(data['mpc']['R'])
     mpc_config.x_min = np.array(data['mpc']['x_min'])
     mpc_config.x_max = np.array(data['mpc']['x_max'])
     mpc_config.u_min = np.array(data['mpc']['u_min'])

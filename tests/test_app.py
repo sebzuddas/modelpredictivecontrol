@@ -25,7 +25,7 @@ class AppTestCase(unittest.TestCase):
                 'dt': 0.2,
                 'N': 15,
                 'Q': [1.0, 1.0],
-                'R': [0.1, 0.1],
+                'R': [0.1],
                 'x_min': [-10.0, -10.0],
                 'x_max': [10.0, 10.0],
                 'u_min': [-1.0, -1.0],
@@ -40,7 +40,9 @@ class AppTestCase(unittest.TestCase):
                 'api_config': {},
                 'sim_config': {
                     'A': [[1, 0.1], [0, 1]],
-                    'B': [[0.05], [0.1]]
+                    'B': [[0.05], [0.1]],
+                    'noise_level': 0.0,
+                    'disturbance_level': 0.0
                 }
             }
         }
